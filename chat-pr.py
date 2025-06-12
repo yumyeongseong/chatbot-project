@@ -1,7 +1,7 @@
 import streamlit as st
 from llm import get_ai_message
 st.set_page_config(page_title='📑MIT 과학이야기')
-st.title('📑월간 MIT 과학 이야기')
+st.title('📑MIT 읽어주는 Chabot')
 
 if 'message_list' not in st.session_state:
     st.session_state.message_list=[]

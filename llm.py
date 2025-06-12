@@ -29,7 +29,7 @@ def get_database():
     ## 임베딩 모델 지정
     embedding = OpenAIEmbeddings(model='text-embedding-3-large')
     pc = Pinecone(api_key=PINECONE_API_KEY)
-    index_name = 'mitreport'
+    index_name = 'project'
 
     ## 저장된 인덱스 가져오기 ========================================================
     database = PineconeVectorStore.from_existing_index(
@@ -88,6 +88,7 @@ def get_retrievalQA():
         - 문단 마지막에 <'레포트 제목', '레포트 발행일자'>를 답변하세요.
         - 업데이트된 레포트 이외 질문을 하면 '레포트를 업데이트 중입니다 추후 질문 부탁드립니다.'라고 답변하세요.
         - 대답 할 수 없는 정보에 대해서는 현재 읽을 수 있는 [context]에 대해서 설명해 줄수 있다고 덧 붙여주세요.
+        - 주제 별로 항목을 나누어서 설명해 주세요.
 
         [context]
         {context}
