@@ -1,4 +1,7 @@
-스페셜리포트_2024-Vol.3-AI란-무엇인가.pdf
+# 파일
 .env
-스페셜리포트_2025년10대미래기술.pdf
-__pycache__
+*.pdf
+
+## 폴더
+ __pycache__/
+ secret/
