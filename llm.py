@@ -48,14 +48,9 @@ def get_session_history(session_id: str) -> BaseChatMessageHistory:
         store[session_id] = ChatMessageHistory()
     return store[session_id]
 
-## retrievalQA 함수 정의 ==============================================================
-def get_retrievalQA():
-    LANGCHAIN_API_KEY = os.getenv('LANGCHAIN_API_KEY')
-
-    database = get_database()
-    llm = get_llm()
-    retriever = database.as_retriever(search_kwargs={'k':2})
-
+## 히스토리 기반 리트리버 ==============================================================
+def get_history_retriever(llm, retriever):
+    ### Contextualize question ###
     contextualize_q_system_prompt = (
         "Given a chat history and the latest user question "
         "which might reference context in the chat history, "
@@ -63,39 +58,59 @@ def get_retrievalQA():
         "without the chat history. Do NOT answer the question, "
         "just reformulate it if needed and otherwise return it as is."
     )
-
-    contextualize_q_prompt = ChatPromptTemplate.from_messages([
-        ("system", contextualize_q_system_prompt),
-        MessagesPlaceholder("chat_history"),
-        ("human", "{input}"),
-    ])
-
-    history_aware_retriever = create_history_aware_retriever(
-        llm, retriever, contextualize_q_prompt
+    contextualize_q_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", contextualize_q_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
     )
 
-    # ===================================================
+    history_aware_retriever = create_history_aware_retriever(
+    llm, retriever, contextualize_q_prompt
+    )
+
+    return history_aware_retriever
+
+def get_qa_prompt():
     system_prompt = (
         '''
-         [identity]
+            [identity]
         - 당신은 과학이야기를 아주 재밌게 이야기하는 과학 커뮤니에이터입니다.
         - [context]를 참고하여 사용자의 질문에 답변하세요.
         - 재밌는 이야기 하듯이 레포트를 풀어서 얘기해 주세요
         - 문단 마지막에 <'레포트 제목', '레포트 발행일자'>를 답변하세요.
         - 업데이트된 레포트 이외 질문을 하면 '레포트를 업데이트 중입니다 추후 질문 부탁드립니다.'라고 답변하세요.
         - 대답 할 수 없는 정보에 대해서는 현재 읽을 수 있는 [context]에 대해서 설명해 줄수 있다고 덧 붙여주세요.
+        [context]
         {context}
         '''
     )
+    qa_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
 
-    qa_prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        MessagesPlaceholder("chat_history"),
-        ("human", "{input}"),
-    ])
-
-    # ===================================================
+    return qa_prompt
    
+## 전체 chain 구성 ===============================================================
+def build_conversational_chain():
+    LANGCHAIN_API_KEY = os.getenv('LANGCHAIN_API_KEY')
+
+    ## LLM 모델 지정
+    llm = get_llm()
+
+    ## vector store에서 index 정보
+    database = get_database()
+    retriever = database.as_retriever(search_kwargs={'k':2})
+
+    history_aware_retriever= get_history_retriever(llm,retriever)
+    
+    qa_prompt = get_qa_prompt()
+    
     question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
     rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
@@ -111,8 +126,8 @@ def get_retrievalQA():
     return conversational_rag_chain
 
 ## [AI message 함수 정의] ==================================
-def get_ai_message(user_message, session_id='default'):
-    qa_chain = get_retrievalQA()
+def stream_ai_message(user_message, session_id='default'):
+    qa_chain =  build_conversational_chain()
 
     
     # ai_message = qa_chain.invoke(user_message)

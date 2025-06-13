@@ -1,5 +1,6 @@
 import streamlit as st
-from llm import get_ai_message
+from llm import stream_ai_message
+
 st.set_page_config(page_title='📑MIT 리포트')
 st.title('📑MIT가 선정한 미래 기술 리포트')
 
@@ -22,7 +23,7 @@ if user_question := st.chat_input(placeholder=placeholder):
     with st.spinner('대답을 생성 중입니다.'):
 
         session_id = 'user-session'
-        ai_message = get_ai_message(user_question, session_id=session_id)
+        ai_message = stream_ai_message(user_question, session_id=session_id)
 
         with st.chat_message('ai'):
             st.write(ai_message)
