@@ -77,6 +77,7 @@ def build_history_aware_retriever(llm, retriever):
 
     return history_aware_retriever
 
+    
 def build_few_shot_examples() -> str:
     example_prompt = PromptTemplate.from_template("질문: {input}\n\n답변:{answer}")
 
@@ -91,26 +92,24 @@ def build_few_shot_examples() -> str:
     formated_few_shot_prompt = few_shot_prompt.format(input='{input}')
 
     return formated_few_shot_prompt
+
+## [외부 사전 로드]
+def load_dictionary_from_file(path= 'keyword_dictionary.json'):
+    with open(path, 'r', encoding='utf-8') as file:
+        return json.load(file)
+
+def buld_dictionary_text(dictionary: dict) -> str:
+     return '\n'.join([
+        f'{k} ({", ".join(v["tags"])}): {v["definition"]} [출처: {v["source"]}]'
+        for k, v in dictionary.items()
+    ])
+
 def build_qa_prompt():
 
-    keyword_dictionary = {
-            '무슨 기술' : '''
-            MIT 테크놀로지 리뷰가 선정한 2025년 10대 미래 기술은 다음과 같습니다:
+    keyword_dictionary = load_dictionary_from_file()
 
-            1. 소형언어모델
-            2. 베라 루빈 천문대
-            3. 장기지속형 HIV 예방제
-            4. 생성형 AI 검색
-            5. 소 트림 감소제
-            6. 청정 제트연료
-            7. 고속학습 로봇
-            8. 효과적인 줄기세포 치료
-            9. 로보택시
-            10. 녹색철강
+    dictionary_text = buld_dictionary_text(keyword_dictionary)
 
-            이 기술들은 앞으로 몇 년 동안 전 세계에 실질적인 영향을 줄 수 있을 것으로 기대됩니다. 각각의 기술에 대한 좀 더 자세한 내용을 원하시면, 다른 질문을 통해 어떤 기술인지 물어보세요!
-'''
-    }
     system_prompt = (
         '''
             [identity]
@@ -123,7 +122,7 @@ def build_qa_prompt():
         {context}
 
         [keyword_dictionary]
-        {keyword_dictionary}
+        {dictionary_text}
         '''
     )
     qa_prompt = ChatPromptTemplate.from_messages(
@@ -132,7 +131,7 @@ def build_qa_prompt():
             MessagesPlaceholder("chat_history"),
             ("human", "{input}"),
         ]
-    ).partial(keyword_dictionary=keyword_dictionary)
+    ).partial(dictionary_text=dictionary_text)
 
     return qa_prompt
    
@@ -178,7 +177,7 @@ def stream_ai_message(user_message, session_id='default'):
 
     # vector store에서 검색된 문서 출력
     retriever = load_vectorstore().as_retriever(search_kwargs={'k':2})
-    serch_results = retriever.invoke(user_message)
+    search_results = retriever.invoke(user_message)
     
-
+    print(f'\nPinecone 검색 결과 >> \n{search_results[0].page_content[:100]}')
     return ai_message
