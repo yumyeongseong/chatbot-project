@@ -22,8 +22,8 @@ def get_llm(model='gpt-4o'):
     return llm
 
 
-## Database 함수 정의 =================================================================
-def get_database():
+## Embedding 설정 + Vector Store Index 가져오기==========================================
+def load_vectorstore():
     PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
     
     ## 임베딩 모델 지정
@@ -49,7 +49,7 @@ def get_session_history(session_id: str) -> BaseChatMessageHistory:
     return store[session_id]
 
 ## 히스토리 기반 리트리버 ==============================================================
-def get_history_retriever(llm, retriever):
+def build_history_aware_retriever(llm, retriever):
     ### Contextualize question ###
     contextualize_q_system_prompt = (
         "Given a chat history and the latest user question "
@@ -72,18 +72,38 @@ def get_history_retriever(llm, retriever):
 
     return history_aware_retriever
 
-def get_qa_prompt():
+def build_qa_prompt():
+
+    keyword_dictionary = {
+            '무슨 기술' : '''
+            MIT 테크놀로지 리뷰가 선정한 2025년 10대 미래 기술은 다음과 같습니다:
+
+            1. 소형언어모델
+            2. 베라 루빈 천문대
+            3. 장기지속형 HIV 예방제
+            4. 생성형 AI 검색
+            5. 소 트림 감소제
+            6. 청정 제트연료
+            7. 고속학습 로봇
+            8. 효과적인 줄기세포 치료
+            9. 로보택시
+            10. 녹색철강
+
+            이 기술들은 앞으로 몇 년 동안 전 세계에 실질적인 영향을 줄 수 있을 것으로 기대됩니다. 각각의 기술에 대한 좀 더 자세한 내용을 원하시면, 다른 질문을 통해 어떤 기술인지 물어보세요!
+'''
+    }
     system_prompt = (
         '''
             [identity]
         - 당신은 과학이야기를 아주 재밌게 이야기하는 과학 커뮤니에이터입니다.
-        - [context]를 참고하여 사용자의 질문에 답변하세요.
-        - 재밌는 이야기 하듯이 레포트를 풀어서 얘기해 주세요
-        - 문단 마지막에 <'레포트 제목', '레포트 발행일자'>를 답변하세요.
+        - 문단 마지막에 <'리포트 제목', '리포트 발행 일자'>를 답변하세요.
         - 업데이트된 레포트 이외 질문을 하면 '레포트를 업데이트 중입니다 추후 질문 부탁드립니다.'라고 답변하세요.
-        - 대답 할 수 없는 정보에 대해서는 현재 읽을 수 있는 [context]에 대해서 설명해 줄수 있다고 덧 붙여주세요.
+        - 사용자의 질문이 [context]에 없으면 [keyword_dictionary]를 참고해서 질문에 답하세요.
         [context]
         {context}
+
+        [keyword_dictionary]
+        {keyword_dictionary}
         '''
     )
     qa_prompt = ChatPromptTemplate.from_messages(
@@ -92,7 +112,7 @@ def get_qa_prompt():
             MessagesPlaceholder("chat_history"),
             ("human", "{input}"),
         ]
-    )
+    ).partial(keyword_dictionary=keyword_dictionary)
 
     return qa_prompt
    
@@ -104,12 +124,12 @@ def build_conversational_chain():
     llm = get_llm()
 
     ## vector store에서 index 정보
-    database = get_database()
+    database = load_vectorstore()
     retriever = database.as_retriever(search_kwargs={'k':2})
 
-    history_aware_retriever= get_history_retriever(llm,retriever)
+    history_aware_retriever= build_history_aware_retriever(llm,retriever)
     
-    qa_prompt = get_qa_prompt()
+    qa_prompt = build_qa_prompt()
     
     question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
     rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
@@ -129,14 +149,16 @@ def build_conversational_chain():
 def stream_ai_message(user_message, session_id='default'):
     qa_chain =  build_conversational_chain()
 
-    
-    # ai_message = qa_chain.invoke(user_message)
-
-    ai_message = qa_chain.invoke(
+    ai_message_stream = qa_chain.stream(
             {"input": user_message},
             config={"configurable": {"session_id": session_id}},
     )
+
+    ai_message = ''.join([chunk for chunk in ai_message_stream])
+
+    # vector store에서 검색된 문서 출력
+    retriever = load_vectorstore().as_retriever(search_kwargs={'k':2})
+    serch_results = retriever.invoke(user_message)
     
+
     return ai_message
-
-
