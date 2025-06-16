@@ -1,3 +1,4 @@
+import json
 import os
 
 from dotenv import load_dotenv
@@ -6,11 +7,15 @@ from langchain.chains import (create_history_aware_retriever,
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.chat_history import BaseChatMessageHistory
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.prompts import (ChatPromptTemplate, FewShotPromptTemplate,
+                                    MessagesPlaceholder, PromptTemplate)
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
+
+from config import answer_examples
+
 
 ## 환경변수 읽어오기 ===================================================================
 load_dotenv()
@@ -72,6 +77,20 @@ def build_history_aware_retriever(llm, retriever):
 
     return history_aware_retriever
 
+def build_few_shot_examples() -> str:
+    example_prompt = PromptTemplate.from_template("질문: {input}\n\n답변:{answer}")
+
+    few_shot_prompt = FewShotPromptTemplate(
+        examples=answer_examples, ## 질문/답변 예시들 (전체 type: list, 각 질문/답변: dict)
+        example_prompt=example_prompt, ## 단일 예시 포맷
+        prefix='다음 질문에 답변하세요 : ',  ## 예시들 위로 추가되는 텍스트(도입부)
+        suffix="질문: {input}", ## 예시들 뒤에 추가되는 텍스트(실제 사용자 질문 변수)
+        input_variables=["input"],  ## suffix에서 사용할 변수
+    )
+
+    formated_few_shot_prompt = few_shot_prompt.format(input='{input}')
+
+    return formated_few_shot_prompt
 def build_qa_prompt():
 
     keyword_dictionary = {
@@ -99,6 +118,7 @@ def build_qa_prompt():
         - 문단 마지막에 <레포트 제목>의 정보를 남겨주세요.
         - 업데이트된 레포트 이외 질문을 하면 '레포트를 업데이트 중입니다 추후 질문 부탁드립니다.'라고 답변하세요.
         - 사용자의 질문이 [context]에 없으면 [keyword_dictionary]를 참고해서 질문에 답하세요.
+        - 여러 주제를 응답 할 때는 무조건 항목별로 응답하세요.
         [context]
         {context}
 
