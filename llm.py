@@ -132,7 +132,7 @@ def stream_ai_message(user_message, session_id='default'):
     
     # ai_message = qa_chain.invoke(user_message)
 
-    ai_message = qa_chain.stream(
+    ai_message = qa_chain.invoke(
             {"input": user_message},
             config={"configurable": {"session_id": session_id}},
     )

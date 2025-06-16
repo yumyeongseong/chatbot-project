@@ -1,8 +1,25 @@
+import uuid
+
 import streamlit as st
 from llm import stream_ai_message
 
 st.set_page_config(page_title='📑MIT 리포트')
 st.title('📑MIT가 선정한 미래 기술 리포트')
+
+## URL의 parameter에 session id 가져오기/저장
+query_params = st.query_params
+
+if 'session_id' in query_params:
+    session_id = query_params['session_id']
+
+else:
+    session_id = str(uuid.uuid4())
+    st.query_params.update({'session_id': session_id})
+
+
+## Streamlit 내부 세션: session id 저장
+if 'session_id' not in st.session_state:
+    st.session_state['session_id'] = session_id
 
 if 'message_list' not in st.session_state:
     st.session_state.message_list=[]
@@ -11,18 +28,17 @@ for message in st.session_state.message_list:
     with st.chat_message(message['role']):
         st.write(message['content'])
 
-## prompt 창(채팅 창) ##############################
-
+## 채팅 메시지
 placeholder= '질문을 작성해 주세요.'
+
 if user_question := st.chat_input(placeholder=placeholder):
-    with st.chat_message('user'):
         ## 사용자 메시지 화면 출력
+    with st.chat_message('user'):
         st.write(user_question)
     st.session_state.message_list.append({'role':'user','content':user_question})
 
     with st.spinner('대답을 생성 중입니다.'):
-
-        session_id = 'user-session'
+        session_id = st.session_state.session_id
         ai_message = stream_ai_message(user_question, session_id=session_id)
 
         with st.chat_message('ai'):
